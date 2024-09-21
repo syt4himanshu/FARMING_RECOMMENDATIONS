@@ -1,0 +1,175 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Sun, Cloud, Wind, Droplet, Thermometer } from 'lucide-react'
+
+const apiKey = '36417e4de12644208a5164212242306'
+const geoDBApiKey = 'c95b093f93msh30379131f06e071p1db943jsncc696ece55ae'
+
+const maharashtraCrops = [
+  "Rice", "Wheat", "Sugarcane", "Cotton", "Soybean", "Maize", 
+  "Groundnut", "Onion", "Bajra (Pearl Millet)", "Pulses (e.g., Chickpeas, Pigeon Pea)"
+]
+
+export default function FarmAdvisor() {
+  const [city, setCity] = useState('')
+  const [weather, setWeather] = useState(null)
+  const [selectedCrop, setSelectedCrop] = useState('')
+  const [recommendation, setRecommendation] = useState('')
+
+  useEffect(() => {
+    if (city) {
+      fetchWeather(city)
+    }
+  }, [city])
+
+  const fetchWeather = async (query) => {
+    try {
+      const geoResponse = await fetch(`https://wft-geo-db.p.rapidapi.com/v1/geo/cities?namePrefix=${query}`, {
+        headers: {
+          'X-RapidAPI-Key': geoDBApiKey,
+          'X-RapidAPI-Host': 'wft-geo-db.p.rapidapi.com'
+        }
+      })
+      const geoData = await geoResponse.json()
+      if (geoData.data && geoData.data.length > 0) {
+        const { latitude, longitude } = geoData.data[0]
+        const weatherResponse = await fetch(`https://api.weatherapi.com/v1/current.json?key=${apiKey}&q=${latitude},${longitude}`)
+        const weatherData = await weatherResponse.json()
+        setWeather(weatherData.current)
+      }
+    } catch (error) {
+      console.error('Error fetching weather data:', error)
+    }
+  }
+
+  const getRecommendation = () => {
+    if (!weather || !selectedCrop) return ''
+
+    const { temp_c, humidity, wind_kph, wind_dir } = weather
+
+    let advice = ''
+
+    if (temp_c > 30) {
+      advice += "High temperature detected. Ensure adequate irrigation. "
+    } else if (temp_c < 15) {
+      advice += "Low temperature detected. Protect crops from frost if applicable. "
+    }
+
+    if (humidity > 80) {
+      advice += "High humidity may increase disease risk. Monitor crops closely. "
+    } else if (humidity < 30) {
+      advice += "Low humidity detected. Increase irrigation if needed. "
+    }
+
+    if (wind_kph > 20) {
+      advice += `Strong winds from ${wind_dir}. Protect crops from wind damage. `
+    }
+
+    switch (selectedCrop) {
+      case 'Rice':
+        advice += "Maintain standing water in paddy fields. "
+        break
+      case 'Wheat':
+        advice += "Ensure proper drainage to prevent waterlogging. "
+        break
+      case 'Cotton':
+        advice += "Monitor for pests, especially in humid conditions. "
+        break
+    }
+
+    advice += "For more specialized recommendations, consider integrating machine learning models trained on historical data and local conditions."
+
+    return advice
+  }
+
+  useEffect(() => {
+    setRecommendation(getRecommendation())
+  }, [weather, selectedCrop])
+
+  return (
+    <div className="container mx-auto p-4 bg-gradient-to-br from-green-50 to-blue-50 min-h-screen">
+      <h1 className="text-4xl font-bold text-center mb-8 text-green-800">FarmAdvisor</h1>
+      <div className="grid md:grid-cols-2 gap-6">
+        <Card className="mb-4 shadow-lg">
+          <CardHeader>
+            <CardTitle className="flex items-center text-green-700">
+              <Sun className="mr-2" /> Weather Information
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="mb-4">
+              <Input 
+                placeholder="Enter city name" 
+                value={city} 
+                onChange={(e) => setCity(e.target.value)}
+                className="border-green-300 focus:border-green-500"
+              />
+            </div>
+            {weather && (
+              <div className="grid grid-cols-2 gap-4 text-center">
+                <div className="flex flex-col items-center">
+                  <Thermometer className="text-red-500 mb-2" />
+                  <span className="font-semibold">{weather.temp_c}°C</span>
+                  <span className="text-sm text-gray-600">Temperature</span>
+                </div>
+                <div className="flex flex-col items-center">
+                  <Droplet className="text-blue-500 mb-2" />
+                  <span className="font-semibold">{weather.humidity}%</span>
+                  <span className="text-sm text-gray-600">Humidity</span>
+                </div>
+                <div className="flex flex-col items-center">
+                  <Wind className="text-gray-500 mb-2" />
+                  <span className="font-semibold">{weather.wind_kph} km/h</span>
+                  <span className="text-sm text-gray-600">Wind Speed</span>
+                </div>
+                <div className="flex flex-col items-center">
+                  <Cloud className="text-gray-400 mb-2" />
+                  <span className="font-semibold">{weather.wind_dir}</span>
+                  <span className="text-sm text-gray-600">Wind Direction</span>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="mb-4 shadow-lg">
+          <CardHeader>
+            <CardTitle className="flex items-center text-green-700">
+              <img src="/placeholder.svg?height=24&width=24" alt="Crop" className="mr-2" /> Crop Selection
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Select onValueChange={setSelectedCrop}>
+              <SelectTrigger className="border-green-300 focus:border-green-500">
+                <SelectValue placeholder="Select your crop" />
+              </SelectTrigger>
+              <SelectContent>
+                {maharashtraCrops.map((crop) => (
+                  <SelectItem key={crop} value={crop}>{crop}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </CardContent>
+        </Card>
+      </div>
+
+      {recommendation && (
+        <Card className="mt-6 shadow-lg bg-gradient-to-r from-green-100 to-blue-100">
+          <CardHeader>
+            <CardTitle className="flex items-center text-green-700">
+              <img src="/placeholder.svg?height=24&width=24" alt="Recommendation" className="mr-2" /> Farming Recommendations
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-gray-800 leading-relaxed">{recommendation}</p>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  )
+}
